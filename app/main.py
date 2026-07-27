@@ -42,11 +42,6 @@ def create_app() -> FastAPI:
         info = await es.info()
         return {"status": "ok", "es": info["version"]["number"], "index": settings.INDEX_NAME}
 
-    # Serves the Barikoi map key to the standalone UI in ../map-ui (kept server-side).
-    @app.get("/map-config", tags=["meta"])
-    async def map_config():
-        return {"key": settings.BARIKOI_MAP_KEY}
-
     return app
 
 

@@ -57,7 +57,6 @@ python scripts/index_single.py <uCode>      # index/refresh one place
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 # OpenAPI docs: http://localhost:8000/docs
-# Map UI:        see ../map-ui (standalone; points back at this API)
 ```
 
 ## API (v1)
@@ -68,7 +67,6 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | GET | `/v1/places/{place_code}` | Full document (coords, bounds, everything). |
 | GET/PUT/DELETE | `/v1/synonyms[/{set_id}[/rules/{rule_id}]]` | Managed synonym sets (ES `_synonyms`). |
 | POST | `/v1/synonyms/{set_id}/reload` | Reload search analyzers (apply synonym changes live). |
-| GET | `/map-config` | Barikoi map key for the standalone UI (../map-ui). |
 | GET | `/health` | Liveness + ES version. |
 
 - `q` is required on suggest/search; `latitude`/`longitude`/`bbox`/`radius`/`limit` are optional.

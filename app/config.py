@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
     DEBUG: bool = False
-    BARIKOI_MAP_KEY: str = ""
 
     # ── Access control ────────────────────────────────────────────────────────
     # CORS origins ("*" = all). Comma-separated for a list.

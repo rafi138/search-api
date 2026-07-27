@@ -74,6 +74,27 @@ async def _has_admin_exact(es: AsyncElasticsearch, index: str, q: str) -> bool:
     return len(res["hits"]["hits"]) > 0
 
 
+async def _has_alias_exact(es: AsyncElasticsearch, index: str, q: str) -> bool:
+    """Quick check: does any doc have an alter_name exactly equal to q (lowercased)?"""
+    res = await es.search(index=index, body={
+        "size": 1,
+        "query": {"term": {"alter_names.raw": q.lower()}}
+    })
+    return len(res["hits"]["hits"]) > 0
+
+
+def _merge_alias_first(alias_hits: list, hits: list, limit: int) -> list:
+    """Prepend exact-alias hits ahead of the main results (deduped by _id, sliced)."""
+    if not alias_hits:
+        return hits
+    seen, merged = set(), []
+    for h in alias_hits + hits:
+        if h["_id"] not in seen:
+            seen.add(h["_id"])
+            merged.append(h)
+    return merged[:limit]
+
+
 async def ranked_search(es: AsyncElasticsearch, index: str, q: str, builder,
                         *, lat=None, lon=None, limit: int = 10, debug: bool = False,
                         **builder_kw) -> tuple[list, Optional[list]]:
@@ -82,15 +103,30 @@ async def ranked_search(es: AsyncElasticsearch, index: str, q: str, builder,
     body = builder(q, lat=lat, lon=lon, **builder_kw)
     score_debug = None
 
+    # ── exact-alias tier ───────────────────────────────────────────────────
+    # A place whose alter_name exactly equals the query is "known by exactly this
+    # name" — a stronger signal than a POI whose name merely contains the query.
+    # Such POIs otherwise outrank the alias (the name field's match_phrase_prefix
+    # inflates their score), so exact-alias docs are pulled into a deterministic top tier.
+    alias_hits = []
+    if await _has_alias_exact(es, index, q):
+        alias_body = _add_filter(body, {"term": {"alter_names.raw": q.lower()}})
+        alias_body["size"] = min(limit, 5)
+        alias_res = await es.search(index=index, body=alias_body)
+        alias_hits = alias_res["hits"]["hits"]
+
     # ── address queries: single search ──────────────────────────────────────
     if is_address_query(q):
         if lat is not None and lon is not None:
             pool = await fetch_two_pools(es, index, body, lat, lon, limit)
             ordered, score_debug = rescore_hits(pool, lat, lon)
-            return ordered[:limit], score_debug[:limit] if debug else None
-        body["size"] = limit
-        res = await es.search(index=index, body=body)
-        return res["hits"]["hits"], None
+            hits = ordered[:limit]
+            score_debug = score_debug[:limit] if debug else None
+        else:
+            body["size"] = limit
+            res = await es.search(index=index, body=body)
+            hits = res["hits"]["hits"]
+        return _merge_alias_first(alias_hits, hits, limit), score_debug
 
     # ── check if admin has exact name match → conditional tiering ────────────
     do_tier = await _has_admin_exact(es, index, q)
@@ -123,13 +159,16 @@ async def ranked_search(es: AsyncElasticsearch, index: str, q: str, builder,
             if h["_id"] not in seen:
                 seen.add(h["_id"])
                 merged.append(h)
-        return merged[:limit], score_debug
+        return _merge_alias_first(alias_hits, merged[:limit], limit), score_debug
 
     # ── no admin exact: single query (POI/brand searches) ───────────────────
     if lat is not None and lon is not None:
         pool = await fetch_two_pools(es, index, body, lat, lon, limit)
         ordered, score_debug = rescore_hits(pool, lat, lon)
-        return ordered[:limit], score_debug[:limit] if debug else None
-    body["size"] = limit
-    res = await es.search(index=index, body=body)
-    return res["hits"]["hits"], None
+        hits = ordered[:limit]
+        score_debug = score_debug[:limit] if debug else None
+    else:
+        body["size"] = limit
+        res = await es.search(index=index, body=body)
+        hits = res["hits"]["hits"]
+    return _merge_alias_first(alias_hits, hits, limit), score_debug

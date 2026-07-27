@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+elasticsearch>=8.14,<9
+psycopg2-binary>=2.9
+pymongo>=4.6
+tqdm>=4.66
+aiohttp>=3.14

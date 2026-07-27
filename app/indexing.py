@@ -48,8 +48,12 @@ def _collect_alter_names(row: dict):
     return None
 
 
-def build_doc(row: dict) -> dict:
-    """row keys: places.* + bounds_geom + address_bn/area_bn/city_bn (from the join)."""
+def build_doc(row: dict, existing_alter_names=None) -> dict:
+    """row keys: places.* + bounds_geom + address_bn/area_bn/city_bn (from the join).
+
+    alter_names are authored via the API (stored only in ES), so pass the doc's
+    existing alter_names to preserve them across a reindex (else they're lost).
+    """
     r = row
     lat = r.get("latitude")
     lon = r.get("longitude")
@@ -63,8 +67,9 @@ def build_doc(row: dict) -> dict:
     pn = (r.get("place_name") or "").strip() or None
     name = bn or pn  # canonical name = business_name else place_name
 
-    # alter_names: per-place aliases (empty for now — see _collect_alter_names).
-    alter = _collect_alter_names(r)
+    # alter_names: preserve aliases already in ES (passed by the indexers); fall back
+    # to the (currently empty) DB source hook.
+    alter = existing_alter_names if existing_alter_names is not None else _collect_alter_names(r)
 
     # new_address excludes the name (it lives in `name`/`alter_names` now)
     new_address = _join_unique([

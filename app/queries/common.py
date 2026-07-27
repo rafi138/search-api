@@ -24,8 +24,7 @@ def exact_should(q: str) -> list:
         return []
     ql = q.lower()
     return [
-        {"term": {"name.raw": {"value": ql, "boost": ranking.EXACT_BOOST}}},
-        {"term": {"alter_names.raw": {"value": ql, "boost": ranking.EXACT_BOOST}}},
+        {"term": {"all_names.raw": {"value": ql, "boost": ranking.EXACT_BOOST}}},
     ]
 
 
@@ -36,8 +35,8 @@ def address_should(q: str, fuzzy: bool = False) -> list:
         {"match": {"new_address": {"query": q, "boost": 15, "analyzer": "name_search_analyzer", **f}}},
         {"match_phrase_prefix": {"new_address": {"query": q, "boost": 10, "analyzer": "name_search_analyzer"}}},
         {"match": {"new_address.complete": {"query": q, "boost": 8, **f}}},
-        {"match": {"name": {"query": q, "boost": 10, **f}}},
-        {"match": {"name.complete": {"query": q, "boost": 5}}},
+        {"match": {"all_names": {"query": q, "boost": 10, **f}}},
+        {"match": {"all_names.complete": {"query": q, "boost": 5}}},
         {"match": {"area": {"query": q, "boost": 3, **f}}},
     ]
 
@@ -47,16 +46,12 @@ def name_should(q: str, fuzzy: bool = False) -> list:
     f = {"fuzziness": "AUTO"} if fuzzy else {}
     ql = q.lower()
     return [
-        # exact name match (highest)
-        {"match": {"name": {"query": q, "boost": 12}}},
-        {"match_phrase_prefix": {"name": {"query": q, "boost": 8}}},
-        {"match": {"name.complete": {"query": q, "boost": 7}}},
-        # prefix (name STARTS with query — left-to-right priority)
-        {"prefix": {"name.raw": {"value": ql, "boost": ranking.PREFIX_BOOST}}},
-        # alter_names
-        {"match": {"alter_names": {"query": q, "boost": 9}}},
-        {"match": {"alter_names.complete": {"query": q, "boost": 5}}},
-        {"prefix": {"alter_names.raw": {"value": ql, "boost": ranking.PREFIX_BOOST}}},
+        # name + alter_names combined (all_names): an alias matches/ranks like the name
+        {"match": {"all_names": {"query": q, "boost": 12}}},
+        {"match_phrase_prefix": {"all_names": {"query": q, "boost": 8}}},
+        {"match": {"all_names.complete": {"query": q, "boost": 7}}},
+        # prefix (name/alias STARTS with query — left-to-right priority)
+        {"prefix": {"all_names.raw": {"value": ql, "boost": ranking.PREFIX_BOOST}}},
         # address + locality
         {"match": {"new_address": {"query": q, "boost": 4, "analyzer": "name_search_analyzer", **f}}},
         {"match_phrase_prefix": {"new_address": {"query": q, "boost": 3, "analyzer": "name_search_analyzer"}}},
@@ -83,14 +78,14 @@ def digit_must(q: str) -> list | None:
 
 def all_words_must(q: str) -> list | None:
     """For multi-word queries (2+ tokens): require ALL words to appear across
-    name + alter_names + new_address + area. Prevents docs matching only one word
+    all_names + new_address + area. Prevents docs matching only one word
     (e.g. admin areas matching just 'gulshan' for 'pathao gulshan')."""
     tokens = q.strip().split()
     if len(tokens) < 2:
         return None
     return [{"multi_match": {
         "query": q,
-        "fields": ["name", "alter_names", "new_address", "area", "district"],
+        "fields": ["all_names", "new_address", "area", "district"],
         "operator": "and",
         "type": "cross_fields",
         "analyzer": "name_search_analyzer",

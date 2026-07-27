@@ -83,8 +83,11 @@ def mapping_properties() -> dict:
         "properties": {
             "id": {"type": "long"},
             "place_code": {"type": "keyword"},
-            "name": _NAME_FIELD,
-            "alter_names": _NAME_FIELD,
+            # name + alter_names copy into all_names so an alias matches/ranks like a
+            # name (shared field stats) and each alias gets autocomplete (.complete).
+            "name": {**_NAME_FIELD, "copy_to": "all_names"},
+            "alter_names": {**_NAME_FIELD, "copy_to": "all_names"},
+            "all_names": _NAME_FIELD,
             "business_name": _NAME_FIELD,
             "place_name": _NAME_FIELD,
             "new_address": _ADDRESS_FIELD,

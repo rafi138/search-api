@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, NotFoundError
 
 from app.config import get_settings
 from app.indexing import build_doc
@@ -47,9 +47,18 @@ def main():
     if not row:
         print(f"place_code {args.place_code!r} not found in DB."); sys.exit(1)
 
-    doc = build_doc(dict(row))
+    # preserve alter_names already in ES (they're authored via the API, not the DB)
+    existing_alter = None
+    try:
+        cur_doc = es.get(index=index, id=args.place_code)
+        existing_alter = cur_doc["_source"].get("alter_names")
+    except NotFoundError:
+        existing_alter = None
+
+    doc = build_doc(dict(row), existing_alter_names=existing_alter)
     res = es.index(index=index, id=args.place_code, document=doc)
-    print(f"{res['result']}: {args.place_code} -> {doc.get('new_address')}")
+    print(f"{res['result']}: {args.place_code} -> {doc.get('new_address')}"
+          + (f" (kept {len(existing_alter)} alias(es))" if existing_alter else ""))
 
 
 if __name__ == "__main__":

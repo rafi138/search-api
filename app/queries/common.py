@@ -77,9 +77,16 @@ def digit_must(q: str) -> list | None:
 
 
 def all_words_must(q: str) -> list | None:
-    """For multi-word queries (2+ tokens): require ALL words to appear across
-    all_names + new_address + area. Prevents docs matching only one word
-    (e.g. admin areas matching just 'gulshan' for 'pathao gulshan')."""
+    """For multi-word queries (2+ tokens): require ALL query words to appear across
+    all_names + new_address + area + district. Prevents docs matching only one word
+    (e.g. admin areas matching just 'gulshan' for 'pathao gulshan').
+
+    Uses the plain ``standard`` analyzer, NOT name_search_analyzer: the synonym filter
+    expands tokens (e.g. 'hq' -> 'head quarter office'), and with operator 'and' that
+    over-constrained the gate — e.g. 'pathao hq' required head/quarter/office too and
+    failed to match a place literally named 'Pathao HQ'. The gate should match the
+    literal query tokens; synonym matching still happens in the `should` clauses.
+    """
     tokens = q.strip().split()
     if len(tokens) < 2:
         return None
@@ -88,7 +95,7 @@ def all_words_must(q: str) -> list | None:
         "fields": ["all_names", "new_address", "area", "district"],
         "operator": "and",
         "type": "cross_fields",
-        "analyzer": "name_search_analyzer",
+        "analyzer": "standard",
     }}]
 
 

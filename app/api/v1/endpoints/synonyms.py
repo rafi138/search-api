@@ -1,8 +1,9 @@
 """Managed synonyms endpoints (ES ``_synonyms`` API).
 
-Operations mirror the official ES synonyms API (create/replace a set, list/get/
-delete a set, upsert/delete a single rule, and reload the index search analyzers
-so changes take effect with no close/reopen or reindex).
+Edit the managed ``places_synonyms`` set (create/replace, list/get/delete, upsert/
+delete a single rule). The index uses an inline ``synonym_graph`` filter, so to APPLY
+edits call ``POST /{set_id}/reload`` — it closes the index, updates the inline rules,
+and reopens (no reindex; the index is briefly unavailable while closed).
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from elasticsearch import AsyncElasticsearch
@@ -91,11 +92,34 @@ async def delete_rule(set_id: str, rule_id: str, es: AsyncElasticsearch = Depend
     return {"deleted": f"{set_id}/{rule_id}"}
 
 
-@router.post("/{set_id}/reload", summary="Reload search analyzers on the index (apply changes live)")
+@router.post("/{set_id}/reload", summary="Apply this set's synonyms to the index (close/reopen, no reindex)")
 async def reload(set_id: str, es: AsyncElasticsearch = Depends(get_es)):
-    """Reload search analyzers so updated synonym rules take effect immediately."""
+    """Apply the managed set's synonym rules to the index.
+
+    The index uses an inline ``synonym_graph`` filter (which can't reference a managed
+    set), so changes are applied by closing the index, updating the filter's inline
+    rules from this set, and reopening — NO reindex. The index is briefly unavailable
+    while closed (a few seconds). Edit the rules first (PUT/DELETE rule, or PUT set).
+    """
+    settings = get_settings()
     try:
-        resp = await es.indices.reload_search_analyzers(index=get_settings().INDEX_NAME)
+        resp = await es.synonyms.get_synonym(id=set_id)
     except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    rules = [r["synonyms"] for r in (resp.get("synonyms_set") or [])
+             if isinstance(r, dict) and r.get("synonyms")]
+    idx = settings.INDEX_NAME
+    try:
+        await es.indices.close(index=idx)
+        await es.indices.put_settings(index=idx, body={"analysis": {"filter": {"bangla_synonym": {
+            "type": "synonym_graph", "synonyms": rules, "lenient": True}}}})
+        await es.indices.open(index=idx)
+        await es.cluster.health(index=idx, wait_for_status="yellow", timeout="60s")
+    except Exception as e:
+        try:  # best-effort reopen if something failed mid-way
+            await es.indices.open(index=idx)
+        except Exception:
+            pass
         raise HTTPException(status_code=400, detail=str(e))
-    return {"set_id": set_id, "index": get_settings().INDEX_NAME, "reloaded": resp.get("reloaded_analyzers")}
+    return {"set_id": set_id, "index": idx, "applied_rules": len(rules),
+            "method": "close/reopen (synonym_graph inline, no reindex)"}

@@ -1,5 +1,6 @@
 """Push synonyms (Postgres places_synonyms + MongoDB eLocations.synonyms) into the
-ES managed synonym set, then reload search analyzers so changes apply live.
+ES managed synonym set (source of truth), then apply them to the index via
+close/reopen (the inline synonym_graph filter can't use a managed set; no reindex).
 
 - Postgres: ``places_synonyms(barikoi_phrase, synonym)`` -> one-way "synonym => barikoi_phrase".
 - MongoDB:  ``{synonyms: [equivalent spellings...]}`` -> multi-way "t1, t2, ...".
@@ -88,12 +89,23 @@ def main():
                        verify_certs=s.ES_VERIFY_CERTS, ca_certs=s.ES_CA_CERTS or None)
     es.synonyms.put_synonym(id=s.SYNONYM_SET_ID,
                             body={"synonyms_set": [{"synonyms": r} for r in rules]})
-    print(f"updated synonym set {s.SYNONYM_SET_ID!r}.")
+    print(f"updated synonym set {s.SYNONYM_SET_ID!r} (source of truth).")
+    # apply to the index: the inline synonym_graph filter can't use a managed set, so
+    # close -> update the inline rules -> reopen (no reindex; brief unavailability).
+    idx = s.INDEX_NAME
     try:
-        es.indices.reload_search_analyzers(index=s.INDEX_NAME)
-        print(f"reloaded search analyzers on {s.INDEX_NAME!r}.")
+        es.indices.close(index=idx)
+        es.indices.put_settings(index=idx, body={"analysis": {"filter": {"bangla_synonym": {
+            "type": "synonym_graph", "synonyms": rules, "lenient": True}}}})
+        es.indices.open(index=idx)
+        es.cluster.health(index=idx, wait_for_status="yellow", timeout="60s")
+        print(f"applied {len(rules)} rule(s) to {idx!r} via close/reopen (no reindex).")
     except Exception as e:
-        print(f"reload_search_analyzers skipped/failed: {e}")
+        try:
+            es.indices.open(index=idx)
+        except Exception:
+            pass
+        print(f"apply via close/reopen failed (set updated but NOT applied): {e}")
 
 
 if __name__ == "__main__":

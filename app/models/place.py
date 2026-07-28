@@ -1,6 +1,6 @@
 """Pydantic models for place endpoints.
 
-Suggest/search return only a *summary* (name + address + types, no lat/lon);
+Suggest/search return a *summary* (name + address + types + coordinates);
 the place-details endpoint returns the full document. The public id is
 ``place_code`` (also the ES ``_id``).
 """
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PlaceSummary(BaseModel):
-    """Lightweight result for suggest & search (no coordinates)."""
+    """Lightweight result for suggest & search (name + address + types + lat/lon)."""
     model_config = ConfigDict(populate_by_name=True)
 
     place_code: Optional[str] = None
@@ -18,6 +18,21 @@ class PlaceSummary(BaseModel):
     address: str
     pType: Optional[str] = None
     subType: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+    @staticmethod
+    def _coord(source: dict) -> tuple[Optional[float], Optional[float]]:
+        gl = source.get("geo_location")
+        if isinstance(gl, dict) and gl.get("lat") is not None and gl.get("lon") is not None:
+            try:
+                return float(gl["lat"]), float(gl["lon"])
+            except (TypeError, ValueError):
+                pass
+        try:
+            return float(source.get("latitude")), float(source.get("longitude"))
+        except (TypeError, ValueError):
+            return None, None
 
     @classmethod
     def from_source(cls, source: dict) -> "PlaceSummary":
@@ -25,12 +40,15 @@ class PlaceSummary(BaseModel):
                 or source.get("area")
                 or (source.get("new_address") or "").split(",")[0].strip() or "")
         address = source.get("new_address") or source.get("address") or source.get("Address") or ""
+        lat, lon = cls._coord(source)
         return cls(
             place_code=source.get("place_code") or source.get("uCode") or source.get("id"),
             name=name,
             address=address,
             pType=source.get("pType") or source.get("type"),
             subType=source.get("subType") or source.get("sub_type"),
+            latitude=lat,
+            longitude=lon,
         )
 
 

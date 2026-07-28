@@ -2,14 +2,18 @@
 
 Improvements over the legacy mapping:
   * ``business_name`` and ``place_name`` get a ``.complete`` sub-field
-    (edge-n-gram autocomplete + a search analyzer with the managed **synonyms set**),
+    (edge-n-gram autocomplete + a search analyzer with **synonyms**),
     so prefix + synonym matching works on names — not just on ``new_address``.
   * Deduped field set (no ``Address``/``address``/``new_address`` triple, no
     ``type``/``sub_type`` + ``pType``/``subType`` duplicates, no ``union``/``unions``).
   * Single index (admin docs live here with a popularity uplift — no admin index).
 
-The ``synonyms_set`` referenced by the filter is created separately via the managed
-``PUT _synonyms/<id>`` API (see scripts/manage_synonyms.py).
+Synonyms use the ``synonym_graph`` filter (not ``synonym``) so **multi-word** synonyms
+(e.g. "head office" == "hq") are treated as single concepts. ``synonym_graph`` cannot
+reference a managed/updated synonym set, so the rules are passed **inline** and baked
+into the index at creation time (scripts/create_index.py reads the managed
+``places_synonyms`` set as the source of truth). Applying synonym edits therefore
+requires recreating the index (no live ``_reload_search_analyzers``).
 """
 
 # A name-style text field: base tokenization + synonyms at search time, an
@@ -49,15 +53,17 @@ _ADMIN_TEXT_FIELD = {  # locality fields: text + lowercased raw keyword (exact m
 }
 
 
-def analysis_settings(synonym_set_id: str) -> dict:
+def analysis_settings(synonyms: list[str]) -> dict:
     return {
         "analysis": {
             "filter": {
+                # synonym_graph (not synonym) handles multi-word synonyms like
+                # "head office" as a single concept. It can't use a managed/updated
+                # set, so the rules are inline — baked in at index creation.
                 "bangla_synonym": {
-                    "type": "synonym",
-                    "synonyms_set": synonym_set_id,
+                    "type": "synonym_graph",
+                    "synonyms": list(synonyms or []),
                     "lenient": True,
-                    "updateable": True,
                 },
             },
             "normalizer": {
@@ -120,5 +126,5 @@ def mapping_properties() -> dict:
     }
 
 
-def build_index_body(synonym_set_id: str) -> dict:
-    return {"settings": analysis_settings(synonym_set_id), "mappings": mapping_properties()}
+def build_index_body(synonyms: list[str]) -> dict:
+    return {"settings": analysis_settings(synonyms), "mappings": mapping_properties()}

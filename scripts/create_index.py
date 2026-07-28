@@ -1,8 +1,9 @@
-"""Create the managed synonym set + the ``places`` index.
+"""Ensure the managed synonym set exists + create the ``places`` index.
 
-The index's ``bangla_synonym`` filter references the synonym set by id, so synonym
-updates (via scripts/manage_synonyms.py or the /v1/synonyms API) take effect with a
-``reload_search_analyzers`` — no close/reopen, no reindex.
+The index uses the ``synonym_graph`` filter with INLINE synonyms (synonym_graph can't
+reference a managed/updated set). The managed ``places_synonyms`` set is kept as the
+source of truth; this script reads its rules and bakes them into the index. So to
+APPLY synonym edits, recreate the index (``--force``) — there is no live reload.
 
 Usage:
     python scripts/create_index.py                 # create if absent
@@ -43,6 +44,13 @@ def main():
 
     ensure_synonym_set(es, s.SYNONYM_SET_ID)
 
+    # synonym_graph can't use a managed set, so bake the managed set's rules inline.
+    synonyms = [r["synonyms"]
+                for r in es.synonyms.get_synonym(id=s.SYNONYM_SET_ID)["synonyms_set"]]
+    print(f"baking {len(synonyms)} synonym rule(s) inline (synonym_graph):")
+    for r in synonyms[:8]:
+        print(f"  {r[:100]}")
+
     if es.indices.exists(index=index):
         if not args.force:
             print(f"index {index!r} already exists (use --force to recreate).")
@@ -50,8 +58,9 @@ def main():
         es.indices.delete(index=index)
         print(f"deleted index {index!r}.")
 
-    es.indices.create(index=index, body=build_index_body(s.SYNONYM_SET_ID))
-    print(f"created index {index!r} referencing synonym set {s.SYNONYM_SET_ID!r}.")
+    es.indices.create(index=index, body=build_index_body(synonyms))
+    print(f"created index {index!r} with {len(synonyms)} inline synonym rule(s).")
+    print("note: to apply future synonym edits, re-run with --force (recreate).")
 
 
 if __name__ == "__main__":

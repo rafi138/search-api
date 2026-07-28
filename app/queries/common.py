@@ -81,11 +81,11 @@ def all_words_must(q: str) -> list | None:
     all_names + new_address + area + district. Prevents docs matching only one word
     (e.g. admin areas matching just 'gulshan' for 'pathao gulshan').
 
-    Uses the plain ``standard`` analyzer, NOT name_search_analyzer: the synonym filter
-    expands tokens (e.g. 'hq' -> 'head quarter office'), and with operator 'and' that
-    over-constrained the gate — e.g. 'pathao hq' required head/quarter/office too and
-    failed to match a place literally named 'Pathao HQ'. The gate should match the
-    literal query tokens; synonym matching still happens in the `should` clauses.
+    Uses name_search_analyzer, whose bangla_synonym filter is now ``synonym_graph``:
+    multi-word synonyms like "head office" == "hq" are treated as one concept, so
+    'pathao head office' matches a place named 'Pathao HQ'. (With the old non-graph
+    'synonym' filter this over-constrained multi-word matches, so it briefly used the
+    plain 'standard' analyzer; synonym_graph makes name_search_analyzer correct again.)
     """
     tokens = q.strip().split()
     if len(tokens) < 2:
@@ -95,7 +95,7 @@ def all_words_must(q: str) -> list | None:
         "fields": ["all_names", "new_address", "area", "district"],
         "operator": "and",
         "type": "cross_fields",
-        "analyzer": "standard",
+        "analyzer": "name_search_analyzer",
     }}]
 
 

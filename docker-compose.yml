@@ -5,7 +5,6 @@ services:
     network_mode: host
     env_file: .env
     volumes:
-      # The CA cert lives outside the build context; mount it to the in-container
-      # path that ES_CA_CERTS in .env points to.
-      - ../Autocomplete-new/config/ca.crt:/app/config/ca.crt:ro
+      # Mount the CA cert at the exact path ES_CA_CERTS in .env expects.
+      - ../Autocomplete-new/config/ca.crt:/mnt/ssd_disk/search/Autocomplete-new/config/ca.crt:ro
     restart: unless-stopped

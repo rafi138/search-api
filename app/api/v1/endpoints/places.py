@@ -27,3 +27,13 @@ async def upsert_place(
     Returns ``{"place_code": ..., "result": "created" | "updated"}``."""
     res = await es.index(index=get_settings().INDEX_NAME, id=place_code, document=body)
     return {"place_code": place_code, "result": res["result"]}
+
+
+@router.delete("/{place_code}", summary="Delete a place document by place_code")
+async def delete_place(place_code: str, es: AsyncElasticsearch = Depends(get_es)):
+    """Delete a place document by place_code (ES _id). Returns 404 if not found."""
+    try:
+        await es.delete(index=get_settings().INDEX_NAME, id=place_code)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail=f"Place {place_code} not found")
+    return {"deleted": place_code}

@@ -4,6 +4,7 @@ Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
 import logging
 import time
+import warnings
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     setup_logging(settings.LOG_LEVEL)
+    # suppress the "TLS with verify_certs=False is insecure" warning (ES is localhost)
+    warnings.filterwarnings("ignore", message=".*verify_certs.*")
     app = FastAPI(
         title="Search API",
         version="1.0.0",

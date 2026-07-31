@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 8102
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8102", "--workers", "4"]
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8102", "--timeout", "120"]

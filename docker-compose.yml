@@ -4,4 +4,11 @@ services:
     # ES + Mongo are on the host, so use host networking (localhost reachable).
     network_mode: host
     env_file: .env
+    environment:
+      # The CA cert lives outside the build context; mount it (see volumes) and
+      # point to the in-container path. If you prefer to skip TLS verification,
+      # set ES_VERIFY_CERTS=false and ES_CA_CERTS= (empty) instead.
+      - ES_CA_CERTS=/app/config/ca.crt
+    volumes:
+      - ../Autocomplete-new/config/ca.crt:/app/config/ca.crt:ro
     restart: unless-stopped

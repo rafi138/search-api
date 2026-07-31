@@ -4,4 +4,8 @@ services:
     # ES + Mongo are on the host, so use host networking (localhost reachable).
     network_mode: host
     env_file: .env
+    environment:
+      # Python 3.14's stricter OpenSSL rejects the ES self-signed CA (missing
+      # keyUsage extension). ES is localhost (host network), so skip verification.
+      - ES_VERIFY_CERTS=false
     restart: unless-stopped

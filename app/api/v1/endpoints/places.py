@@ -1,5 +1,5 @@
-"""Place details endpoint — return the full document by place_code (the _id)."""
-from fastapi import APIRouter, Depends, HTTPException
+"""Place details + upsert + delete endpoints (by place_code, the ES _id)."""
+from fastapi import APIRouter, Body, Depends, HTTPException
 from elasticsearch import AsyncElasticsearch, NotFoundError
 
 from ....config import get_settings
@@ -15,3 +15,15 @@ async def get_place(place_code: str, es: AsyncElasticsearch = Depends(get_es)):
         return (await es.get(index=get_settings().INDEX_NAME, id=place_code))["_source"]
     except NotFoundError:
         raise HTTPException(status_code=404, detail=f"Place {place_code} not found")
+
+
+@router.put("/{place_code}", summary="Upsert a place document by place_code")
+async def upsert_place(
+    place_code: str,
+    body: dict = Body(..., description="Full document JSON (any fields)"),
+    es: AsyncElasticsearch = Depends(get_es),
+):
+    """Create or replace a place document. The body is indexed with ``_id = place_code``.
+    Returns ``{"place_code": ..., "result": "created" | "updated"}``."""
+    res = await es.index(index=get_settings().INDEX_NAME, id=place_code, document=body)
+    return {"place_code": place_code, "result": res["result"]}

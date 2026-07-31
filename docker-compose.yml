@@ -4,7 +4,4 @@ services:
     # ES + Mongo are on the host, so use host networking (localhost reachable).
     network_mode: host
     env_file: .env
-    volumes:
-      # Mount the CA cert at the exact path ES_CA_CERTS in .env expects.
-      - ../Autocomplete-new/config/ca.crt:/mnt/ssd_disk/search/Autocomplete-new/config/ca.crt:ro
     restart: unless-stopped

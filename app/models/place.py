@@ -16,8 +16,8 @@ class PlaceSummary(BaseModel):
     place_code: Optional[str] = None
     name: str
     address: str
-    pType: Optional[str] = None
-    subType: Optional[str] = None
+    type: Optional[str] = None
+    subtype: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -45,8 +45,8 @@ class PlaceSummary(BaseModel):
             place_code=source.get("place_code") or source.get("uCode") or source.get("id"),
             name=name,
             address=address,
-            pType=source.get("pType") or source.get("type"),
-            subType=source.get("subType") or source.get("sub_type"),
+            type=source.get("pType") or source.get("type"),
+            subtype=source.get("subType") or source.get("sub_type"),
             latitude=lat,
             longitude=lon,
         )

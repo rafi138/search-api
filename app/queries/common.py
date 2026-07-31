@@ -129,11 +129,58 @@ def normalize_radius(radius) -> str | None:
         return None
 
 
+# locality facet params -> lowercased .raw subfield (case-insensitive, multi-value)
+_LOCALITY_FILTERS = {
+    "area": "area.raw", "district": "district.raw", "city": "city.raw",
+    "thana": "thana.raw", "union": "union.raw", "sub_area": "sub_area.raw",
+    "super_sub_area": "super_sub_area.raw", "sub_district": "sub_district.raw",
+}
+# enum facet params -> exact keyword field
+_KEYWORD_FILTERS = {"postcode": "postCode", "type": "pType", "subtype": "subType"}
+
+
+def build_facet_filters(**params) -> list:
+    """Build ES term/terms filters from standard facet params.
+
+    Locality filters are lowercased (places ``.raw`` uses a lowercase normalizer) and
+    accept comma-separated multi-value. Enum filters (postcode/ptype/subtype) match the
+    stored value exactly (keyword). Empty/None params are skipped.
+    """
+    out = []
+    for key, field in _LOCALITY_FILTERS.items():
+        val = params.get(key)
+        if val:
+            vals = [v.strip().lower() for v in str(val).split(",") if v.strip()]
+            if vals:
+                out.append({"terms": {field: vals}})
+    for key, field in _KEYWORD_FILTERS.items():
+        val = params.get(key)
+        if val:
+            vals = [v.strip() for v in str(val).split(",") if v.strip()]
+            if vals:
+                out.append({"terms": {field: vals}})
+    return out
+
+
+def parse_polygon(polygon: str | None) -> dict | None:
+    """Parse a flat ``lon1,lat1,lon2,lat2,…`` ring (>=3 points) into a geo_polygon filter."""
+    if not polygon:
+        return None
+    parts = [p.strip() for p in str(polygon).split(",") if p.strip()]
+    if len(parts) % 2 != 0 or len(parts) < 6:
+        raise ValueError("polygon must be lon1,lat1,lon2,lat2,… (>= 3 points)")
+    points = []
+    for i in range(0, len(parts), 2):
+        lon, lat = float(parts[i]), float(parts[i + 1])
+        points.append({"lat": lat, "lon": lon})
+    return {"geo_polygon": {"geo_location": {"points": points}}}
+
+
 def build_function_score(should: list, *, limit: int = 10, lat=None, lon=None,
                          zoom: int = ranking.DEFAULT_ZOOM, scale: float = ranking.DEFAULT_SCALE,
                          from_: int = 0, bbox: str | None = None, radius=None,
                          address_mode: bool = False, must: list | None = None,
-                         all_words: list | None = None) -> dict:
+                         all_words: list | None = None, filters: list | None = None) -> dict:
     iw = scale if (lat is not None and lon is not None) else 1.0
     pop_base = ranking.POP_BOOST_ADDRESS if address_mode else ranking.POP_BOOST
     pop_factor = pop_base * iw
@@ -155,21 +202,24 @@ def build_function_score(should: list, *, limit: int = 10, lat=None, lon=None,
                 "decay": ranking.DECAY}},
         })
 
-    boolq = {"should": should, "minimum_should_match": 1}
+    boolq = {}
+    if should:  # empty should => filter-only query (no text), e.g. list banks in a city
+        boolq["should"] = should
+        boolq["minimum_should_match"] = 1
     if must:
         boolq["must"] = must
     if all_words:
         boolq.setdefault("must", []).extend(all_words)
-    filters = []
+    all_filters = list(filters or [])
     bb = parse_bbox(bbox)
     if bb:
-        filters.append(bb)
+        all_filters.append(bb)
     if lat is not None and lon is not None:
         r = normalize_radius(radius)
         if r:
-            filters.append({"geo_distance": {"distance": r, "geo_location": {"lat": lat, "lon": lon}}})
-    if filters:
-        boolq["filter"] = filters
+            all_filters.append({"geo_distance": {"distance": r, "geo_location": {"lat": lat, "lon": lon}}})
+    if all_filters:
+        boolq["filter"] = all_filters
 
     return {
         "from": from_, "size": limit, "track_scores": True,

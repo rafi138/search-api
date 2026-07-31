@@ -56,3 +56,36 @@ def configure_ip_allowlist(app: FastAPI, settings: Settings) -> None:
     allowed = settings.allowed_ips
     if allowed:
         app.add_middleware(IPAllowlistMiddleware, allowed=allowed)
+
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """Reject requests without a valid ``x-api-key`` header.
+
+    Exempts docs, health, and CORS preflight (OPTIONS). If no keys are configured
+    (``API_KEYS`` empty), all requests pass (dev mode).
+    """
+
+    _EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc", "/health",
+                         "/docs/oauth2-redirect"})
+
+    def __init__(self, app, valid_keys: list[str]):
+        super().__init__(app)
+        self.valid_keys = {k.strip() for k in valid_keys if k.strip()}
+
+    async def dispatch(self, request: Request, call_next):
+        if not self.valid_keys:
+            return await call_next(request)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        if request.url.path in self._EXEMPT:
+            return await call_next(request)
+        key = request.headers.get("x-api-key", "")
+        if key not in self.valid_keys:
+            return JSONResponse(status_code=401,
+                                content={"detail": "Invalid or missing x-api-key header"})
+        return await call_next(request)
+
+
+def configure_api_key(app: FastAPI, settings: Settings) -> None:
+    if settings.api_keys:
+        app.add_middleware(APIKeyMiddleware, valid_keys=settings.api_keys)

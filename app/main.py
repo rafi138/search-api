@@ -2,13 +2,16 @@
 
 Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
+import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from .config import get_settings
 from .es import build_client, get_es
-from .security import configure_cors, configure_ip_allowlist
+from .logging_config import setup_logging
+from .security import configure_cors, configure_ip_allowlist, configure_api_key
 from .api.v1.router import api_router
 
 
@@ -26,6 +29,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    setup_logging(settings.LOG_LEVEL)
     app = FastAPI(
         title="Search API",
         version="1.0.0",
@@ -34,6 +38,25 @@ def create_app() -> FastAPI:
     )
     configure_cors(app, settings)
     configure_ip_allowlist(app, settings)
+    configure_api_key(app, settings)
+
+    # request logging
+    logger = logging.getLogger("search_api")
+
+    @app.middleware("http")
+    async def log_request(request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        ms = (time.perf_counter() - start) * 1000
+        logger.info("request", extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "duration_ms": round(ms),
+            "client_ip": request.client.host if request.client else "",
+        })
+        return response
+
     app.include_router(api_router)
 
     @app.get("/health", tags=["meta"])
@@ -41,6 +64,23 @@ def create_app() -> FastAPI:
         es = await get_es()
         info = await es.info()
         return {"status": "ok", "es": info["version"]["number"], "index": settings.INDEX_NAME}
+
+    # Swagger UI: add "Authorize" button for x-api-key
+    from fastapi.openapi.utils import get_openapi
+
+    def _custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(title=app.title, version=app.version,
+                             description=app.description, routes=app.routes)
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["APIKeyHeader"] = {
+            "type": "apiKey", "in": "header", "name": "x-api-key",
+        }
+        schema["security"] = [{"APIKeyHeader": []}]
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = _custom_openapi
 
     return app
 

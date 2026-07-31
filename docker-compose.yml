@@ -1,0 +1,7 @@
+services:
+  search-api:
+    build: .
+    # ES + Mongo are on the host, so use host networking (localhost reachable).
+    network_mode: host
+    env_file: .env
+    restart: unless-stopped

@@ -1,5 +1,6 @@
 fastapi>=0.110
 uvicorn[standard]>=0.29
+gunicorn>=21.2
 pydantic>=2.6
 pydantic-settings>=2.2
 elasticsearch>=8.14,<9

@@ -29,12 +29,15 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
     DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
 
     # ── Access control ────────────────────────────────────────────────────────
     # CORS origins ("*" = all). Comma-separated for a list.
     ALLOWED_ORIGINS: str = "*"
     # Client IP allowlist. Empty = allow all. Comma-separated IPs/CIDRs.
     ALLOWED_IPS: str = ""
+    # API keys for x-api-key header auth. Comma-separated. Empty = no auth (dev).
+    API_KEYS: str = ""
 
     # ── Postgres (indexer source) ─────────────────────────────────────────────
     DB_HOST: str = "localhost"
@@ -54,6 +57,10 @@ class Settings(BaseSettings):
     @property
     def allowed_ips(self) -> List[str]:
         return _split(self.ALLOWED_IPS)
+
+    @property
+    def api_keys(self) -> List[str]:
+        return _split(self.API_KEYS)
 
 
 @lru_cache

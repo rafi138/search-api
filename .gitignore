@@ -1,30 +1,28 @@
-# Environment / secrets
+
+*$py.class
+config/ca.crt
+*.crt
+.DS_Store
 .env
 .env.*
+env/
 !.env.example
-
-# Python
+# Environment / secrets
+.idea/
+# IDE / OS
+*.key
+*.log
+# Logs
+.mypy_cache/
+*.p12
+*.pem
 __pycache__/
 *.py[cod]
-*$py.class
+.pytest_cache/
+# Python
+.ruff_cache/
+# Secrets / certs (defense in depth)
+*.swp
 .venv/
 venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# IDE / OS
-.idea/
 .vscode/
-.DS_Store
-*.swp
-
-# Secrets / certs (defense in depth)
-*.pem
-*.key
-*.crt
-*.p12
-
-# Logs
-*.log

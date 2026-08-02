@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         description="FastAPI autocomplete/geocoding search over Elasticsearch (Bangladesh places).",
         lifespan=lifespan,
-        root_path='/api',
+        root_path=settings.ROOT_PATH or None,
         docs_url="/docs",
         redoc_url="/redoc",
     )

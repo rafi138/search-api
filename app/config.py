@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
+    ROOT_PATH: str = ""
 
     # ── Access control ────────────────────────────────────────────────────────
     # CORS origins ("*" = all). Comma-separated for a list.

@@ -5,3 +5,4 @@ services:
     network_mode: host
     env_file: .env
     restart: unless-stopped
+    mem_limit: 4g

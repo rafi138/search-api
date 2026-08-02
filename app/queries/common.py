@@ -90,13 +90,28 @@ def all_words_must(q: str) -> list | None:
     tokens = q.strip().split()
     if len(tokens) < 2:
         return None
+    fields = ["all_names", "new_address", "area", "district"]
+    if is_bangla(q):
+        fields += ["address_bn", "area_bn", "city_bn"]
     return [{"multi_match": {
         "query": q,
-        "fields": ["all_names", "new_address", "area", "district"],
+        "fields": fields,
         "operator": "and",
         "type": "cross_fields",
         "analyzer": "name_search_analyzer",
     }}]
+
+
+def normalize_bangla(q: str) -> str:
+    """Normalize Bengali Nukta compositions.
+
+    Unicode NFC does NOT compose these pairs (composition exclusion), so a query
+    typed with U+09A1+U+09BC (decomposed) won't match indexed U+09DC (precomposed).
+    We compose them manually to bridge the gap.
+    """
+    return (q.replace("ড়", "ড়")   # ড় → ড়
+             .replace("ঢ়", "ঢ়")   # ঢ় → ঢ়
+             .replace("য়", "য়"))  # য় → য়
 
 
 def is_bangla(q: str) -> bool:
@@ -107,10 +122,11 @@ def is_bangla(q: str) -> bool:
 def bangla_should(q: str) -> list:
     """Bengali-locality clauses — added when the query is in Bangla script.
 
-    Optimized: English queries skip these entirely (no _bn field matching overhead).
-    Existing English clauses are untouched."""
+    Uses ``standard`` analyzer explicitly on address_bn (its search_analyzer is
+    keyword-based which would keep the whole query as one token). Existing English
+    clauses are untouched."""
     return [
-        {"match": {"address_bn": {"query": q, "boost": 8}}},
+        {"match": {"address_bn": {"query": q, "boost": 8, "analyzer": "standard"}}},
         {"match": {"address_bn.complete": {"query": q, "boost": 4}}},
         {"match": {"area_bn": {"query": q, "boost": 4}}},
         {"match": {"city_bn": {"query": q, "boost": 3}}},
@@ -118,6 +134,8 @@ def bangla_should(q: str) -> list:
 
 
 def build_should(q: str, fuzzy: bool = False) -> list:
+    if is_bangla(q):
+        q = normalize_bangla(q)
     if is_address_query(q):
         return address_should(q, fuzzy=fuzzy)
     should = exact_should(q) + name_should(q, fuzzy=fuzzy)

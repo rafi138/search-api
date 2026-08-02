@@ -24,7 +24,7 @@ class SearchResponse(BaseModel):
     score_debug: Optional[list[dict]] = None
 
 
-@router.get("", response_model=SearchResponse, summary="Geocoding search (text + facet filters)")
+@router.get("", response_model=SearchResponse, response_model_exclude_none=True, summary="Geocoding search (text + facet filters)")
 async def search(
     q: str = Query("", max_length=200, description="search text (empty = filter-only, e.g. list banks in a city)"),
     latitude: float | None = Query(None),

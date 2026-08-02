@@ -19,7 +19,7 @@ router = APIRouter(prefix="/suggest", tags=["suggest"])
 
 @router.get("", response_model=SummaryResponse, summary="Autocomplete suggestions (text + facet filters)")
 async def suggest(
-    q: str = Query(..., min_length=1, description="Search text (required)"),
+    q: str = Query(..., min_length=1, max_length=200, description="Search text (required)"),
     latitude: float | None = Query(None, description="Focus latitude (with longitude)"),
     longitude: float | None = Query(None, description="Focus longitude (with latitude)"),
     bbox: str | None = Query(None, description="Bounding box: minlon,minlat,maxlon,maxlat"),

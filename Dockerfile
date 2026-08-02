@@ -11,6 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY config/ca.crt /app/config/ca.crt
 COPY . .
 
-EXPOSE 8102
+EXPOSE 8101
 
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8102", "--timeout", "120"]
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "32", "-b", "0.0.0.0:8101", "--timeout", "120"]

@@ -26,7 +26,7 @@ class SearchResponse(BaseModel):
 
 @router.get("", response_model=SearchResponse, summary="Geocoding search (text + facet filters)")
 async def search(
-    q: str = Query("", description="search text (empty = filter-only, e.g. list banks in a city)"),
+    q: str = Query("", max_length=200, description="search text (empty = filter-only, e.g. list banks in a city)"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
     bbox: str | None = Query(None, description="minlon,minlat,maxlon,maxlat"),
@@ -50,6 +50,8 @@ async def search(
     debug: bool = Query(False, description="include per-doc score breakdown"),
     es: AsyncElasticsearch = Depends(get_es),
 ):
+    if q and len(q.strip()) < 2:
+        raise HTTPException(status_code=422, detail="Query must be at least 2 characters, or empty for filter-only")
     if bbox:
         try:
             parse_bbox(bbox)

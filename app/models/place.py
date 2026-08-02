@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PlaceSummary(BaseModel):
-    """Lightweight result for suggest & search (name + address + types + lat/lon)."""
+    """Lightweight result for suggest & search."""
     model_config = ConfigDict(populate_by_name=True)
 
     place_code: Optional[str] = None
@@ -20,6 +20,20 @@ class PlaceSummary(BaseModel):
     subtype: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    # locality fields (always returned)
+    city: Optional[str] = None
+    area: Optional[str] = None
+    postcode: Optional[str] = None
+    district: Optional[str] = None
+    sub_area: Optional[str] = None
+    thana: Optional[str] = None
+    sub_district: Optional[str] = None
+    union: Optional[str] = None
+    super_sub_area: Optional[str] = None
+    # bangla fields (populated only when bangla=true)
+    address_bn: Optional[str] = None
+    city_bn: Optional[str] = None
+    area_bn: Optional[str] = None
 
     @staticmethod
     def _coord(source: dict) -> tuple[Optional[float], Optional[float]]:
@@ -35,11 +49,11 @@ class PlaceSummary(BaseModel):
             return None, None
 
     @classmethod
-    def from_source(cls, source: dict) -> "PlaceSummary":
+    def from_source(cls, source: dict, bangla: bool = False) -> "PlaceSummary":
         name = (source.get("name") or source.get("business_name") or source.get("place_name")
                 or source.get("area")
                 or (source.get("new_address") or "").split(",")[0].strip() or "")
-        address = source.get("new_address") or source.get("address") or source.get("Address") or ""
+        address = source.get("address") or source.get("new_address") or source.get("Address") or ""
         lat, lon = cls._coord(source)
         return cls(
             place_code=source.get("place_code") or source.get("uCode") or source.get("id"),
@@ -49,6 +63,18 @@ class PlaceSummary(BaseModel):
             subtype=source.get("subType") or source.get("sub_type"),
             latitude=lat,
             longitude=lon,
+            city=source.get("city"),
+            area=source.get("area"),
+            postcode=source.get("postCode"),
+            district=source.get("district"),
+            sub_area=source.get("sub_area"),
+            thana=source.get("thana"),
+            sub_district=source.get("sub_district"),
+            union=source.get("union"),
+            super_sub_area=source.get("super_sub_area"),
+            address_bn=source.get("address_bn") if bangla else None,
+            city_bn=source.get("city_bn") if bangla else None,
+            area_bn=source.get("area_bn") if bangla else None,
         )
 
 

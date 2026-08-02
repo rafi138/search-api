@@ -48,6 +48,7 @@ async def search(
     limit: int = Query(10, ge=1, le=50),
     offset: int = Query(0, ge=0),
     debug: bool = Query(False, description="include per-doc score breakdown"),
+    bangla: bool = Query(False, description="include Bangla (_bn) fields in response"),
     es: AsyncElasticsearch = Depends(get_es),
 ):
     if q and len(q.strip()) < 2:
@@ -72,5 +73,5 @@ async def search(
         es, get_settings().INDEX_NAME, q, build_search_query,
         lat=latitude, lon=longitude, limit=limit, debug=debug,
         bbox=bbox, radius=radius, from_=offset, filters=filters)
-    places = [PlaceSummary.from_source(h["_source"]) for h in hits]
+    places = [PlaceSummary.from_source(h["_source"], bangla=bangla) for h in hits]
     return SearchResponse(places=places, score_debug=score_debug)

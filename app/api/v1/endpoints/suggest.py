@@ -39,6 +39,7 @@ async def suggest(
     type: str | None = Query(None),
     subtype: str | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
+    bangla: bool = Query(False, description="include Bangla (_bn) fields in response"),
     es: AsyncElasticsearch = Depends(get_es),
 ):
     try:
@@ -55,5 +56,5 @@ async def suggest(
     hits, _ = await ranked_search(
         es, get_settings().INDEX_NAME, q, build_suggestion_query,
         lat=latitude, lon=longitude, limit=limit, bbox=bbox, radius=radius, filters=filters)
-    places = [PlaceSummary.from_source(h["_source"]) for h in hits]
+    places = [PlaceSummary.from_source(h["_source"], bangla=bangla) for h in hits]
     return SummaryResponse(places=places)

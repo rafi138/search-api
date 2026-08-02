@@ -99,10 +99,31 @@ def all_words_must(q: str) -> list | None:
     }}]
 
 
+def is_bangla(q: str) -> bool:
+    """True if the query contains Bengali (Unicode U+0980–U+09FF) characters."""
+    return any("ঀ" <= ch <= "৿" for ch in q)
+
+
+def bangla_should(q: str) -> list:
+    """Bengali-locality clauses — added when the query is in Bangla script.
+
+    Optimized: English queries skip these entirely (no _bn field matching overhead).
+    Existing English clauses are untouched."""
+    return [
+        {"match": {"address_bn": {"query": q, "boost": 8}}},
+        {"match": {"address_bn.complete": {"query": q, "boost": 4}}},
+        {"match": {"area_bn": {"query": q, "boost": 4}}},
+        {"match": {"city_bn": {"query": q, "boost": 3}}},
+    ]
+
+
 def build_should(q: str, fuzzy: bool = False) -> list:
     if is_address_query(q):
         return address_should(q, fuzzy=fuzzy)
-    return exact_should(q) + name_should(q, fuzzy=fuzzy)
+    should = exact_should(q) + name_should(q, fuzzy=fuzzy)
+    if is_bangla(q):
+        should.extend(bangla_should(q))
+    return should
 
 
 def parse_bbox(bbox: str | None) -> dict | None:

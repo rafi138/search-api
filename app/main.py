@@ -38,6 +38,9 @@ def create_app() -> FastAPI:
         version="1.0.0",
         description="FastAPI autocomplete/geocoding search over Elasticsearch (Bangladesh places).",
         lifespan=lifespan,
+        root_path='/api',
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
     configure_cors(app, settings)
     configure_ip_allowlist(app, settings)

@@ -24,8 +24,8 @@ class ReverseResult(BaseModel):
     place_code: Optional[str] = None
     name: str
     address: str
-    pType: Optional[str] = None
-    subType: Optional[str] = None
+    type: Optional[str] = None
+    subtype: Optional[str] = None
     distance_km: Optional[float] = None
 
 
@@ -39,7 +39,7 @@ def _summary(src: dict, lat: float, lon: float) -> ReverseResult:
         float(src.get("latitude") or 0), float(src.get("longitude") or 0), lat, lon)
     return ReverseResult(
         place_code=s.place_code, name=s.name, address=s.address,
-        pType=s.pType, subType=s.subType,
+        type=s.type, subtype=s.subtype,
         distance_km=round(d, 4) if d is not None else None,
     )
 

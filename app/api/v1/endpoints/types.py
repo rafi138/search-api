@@ -24,7 +24,7 @@ async def list_types(
     size: int = Query(100, ge=1, le=500, description="max buckets per aggregation"),
     es: AsyncElasticsearch = Depends(get_es),
 ):
-    """Returns ``{"pType": [{value, count}, …], "subType": […]}`` scoped by the
+    """Returns ``{"type": [{value, count}, …], "subtype": […]}`` scoped by the
     optional locality filters and/or ``type`` drill-down."""
     settings = get_settings()
     filters = build_facet_filters(area=area, district=district, city=city,
@@ -36,8 +36,8 @@ async def list_types(
         "size": 0,
         "query": {"bool": {"filter": filters}} if filters else {"match_all": {}},
         "aggs": {
-            "pType": {"terms": {"field": "pType", "size": size}},
-            "subType": {"terms": {"field": "subType", "size": size}},
+            "type": {"terms": {"field": "pType", "size": size}},
+            "subtype": {"terms": {"field": "subType", "size": size}},
         },
     }
     res = await es.search(index=settings.INDEX_NAME, body=body)

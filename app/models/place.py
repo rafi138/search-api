@@ -51,7 +51,7 @@ class PlaceSummary(BaseModel):
     @classmethod
     def from_source(cls, source: dict, bangla: bool = False) -> "PlaceSummary":
         name = (source.get("name") or source.get("business_name") or source.get("place_name")
-                or (source.get("new_address") or "").split(",")[0].strip() or "")
+                or (source.get("new_address") or source.get("Address") or source.get("address")) or "")
         address = source.get("address") or source.get("new_address") or source.get("Address") or ""
         lat, lon = cls._coord(source)
         return cls(
